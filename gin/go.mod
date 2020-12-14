@@ -1,4 +1,4 @@
-module gin
+module github.com/phuslu/log-contrib/gin
 
 go 1.15
 

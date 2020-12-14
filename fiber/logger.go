@@ -1,20 +1,19 @@
-package gin
+package fiber
 
 import (
-	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/phuslu/log"
 )
 
 type Config struct {
 	Logger  *log.Logger
 	Context log.Context
-	Skip    func(c *gin.Context) bool
+	Skip    func(c *fiber.Ctx) bool
 }
 
-func SetLogger(config ...Config) gin.HandlerFunc {
+func SetLogger(config ...Config) fiber.Handler {
 	var newConfig Config
 	if len(config) > 0 {
 		newConfig = config[0]
@@ -24,42 +23,41 @@ func SetLogger(config ...Config) gin.HandlerFunc {
 		newConfig.Logger = &log.DefaultLogger
 	}
 
-	return func(c *gin.Context) {
+	return func(c *fiber.Ctx) error {
 		start := time.Now()
-		c.Next()
+		next := c.Next()
 
 		if newConfig.Skip != nil && !newConfig.Skip(c) {
-			return
+			return nil
 		}
 
 		end := time.Now()
 		latency := end.Sub(start)
 
-		path := c.Request.URL.Path
-		if c.Request.URL.RawQuery != "" {
-			path = path + "?" + c.Request.URL.RawQuery
-		}
+		status := c.Response().StatusCode()
 		msg := "Request"
-		if len(c.Errors) > 0 {
-			msg = c.Errors.String()
+		if next != nil {
+			msg = next.Error()
 		}
 
 		ctx := log.NewContext(nil).
-			Int("status", c.Writer.Status()).
-			Str("method", c.Request.Method).
-			Str("path", path).
-			Str("ip", c.ClientIP()).
+			Int("status", status).
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Str("ip", c.IP()).
 			Dur("latency", latency).
-			Str("user_agent", c.Request.UserAgent()).
+			Str("user_agent", c.Get(fiber.HeaderUserAgent)).
 			Value()
 
 		switch {
-		case c.Writer.Status() >= http.StatusBadRequest && c.Writer.Status() < http.StatusInternalServerError:
+		case status >= 400 && status < 500:
 			newConfig.Logger.Warn().Context(newConfig.Context).Context(ctx).Msg(msg)
-		case c.Writer.Status() >= http.StatusInternalServerError:
+		case status >= 500:
 			newConfig.Logger.Error().Context(newConfig.Context).Context(ctx).Msg(msg)
 		default:
 			newConfig.Logger.Info().Context(newConfig.Context).Context(ctx).Msg(msg)
 		}
+
+		return nil
 	}
 }
