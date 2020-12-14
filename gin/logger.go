@@ -1,7 +1,6 @@
 package gin
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -43,23 +42,24 @@ func SetLogger(config ...Config) gin.HandlerFunc {
 		if len(c.Errors) > 0 {
 			msg = c.Errors.String()
 		}
+		status := c.Writer.Status()
 
-		ctx := log.NewContext(nil).
+		var e *log.Entry
+		switch {
+		case status >= 400 && status < 500:
+			e = newConfig.Logger.Warn()
+		case status >= 500:
+			e = newConfig.Logger.Error()
+		default:
+			e = newConfig.Logger.Info()
+		}
+		e.Context(newConfig.Context).
 			Int("status", c.Writer.Status()).
 			Str("method", c.Request.Method).
 			Str("path", path).
 			Str("ip", c.ClientIP()).
 			Dur("latency", latency).
 			Str("user_agent", c.Request.UserAgent()).
-			Value()
-
-		switch {
-		case c.Writer.Status() >= http.StatusBadRequest && c.Writer.Status() < http.StatusInternalServerError:
-			newConfig.Logger.Warn().Context(newConfig.Context).Context(ctx).Msg(msg)
-		case c.Writer.Status() >= http.StatusInternalServerError:
-			newConfig.Logger.Error().Context(newConfig.Context).Context(ctx).Msg(msg)
-		default:
-			newConfig.Logger.Info().Context(newConfig.Context).Context(ctx).Msg(msg)
-		}
+			Msg(msg)
 	}
 }

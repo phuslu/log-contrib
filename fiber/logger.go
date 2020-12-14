@@ -40,23 +40,23 @@ func SetLogger(config ...Config) fiber.Handler {
 			msg = next.Error()
 		}
 
-		ctx := log.NewContext(nil).
+		var e *log.Entry
+		switch {
+		case status >= 400 && status < 500:
+			e = newConfig.Logger.Warn()
+		case status >= 500:
+			e = newConfig.Logger.Error()
+		default:
+			e = newConfig.Logger.Info()
+		}
+		e.Context(newConfig.Context).
 			Int("status", status).
 			Str("method", c.Method()).
 			Str("path", c.Path()).
 			Str("ip", c.IP()).
 			Dur("latency", latency).
 			Str("user_agent", c.Get(fiber.HeaderUserAgent)).
-			Value()
-
-		switch {
-		case status >= 400 && status < 500:
-			newConfig.Logger.Warn().Context(newConfig.Context).Context(ctx).Msg(msg)
-		case status >= 500:
-			newConfig.Logger.Error().Context(newConfig.Context).Context(ctx).Msg(msg)
-		default:
-			newConfig.Logger.Info().Context(newConfig.Context).Context(ctx).Msg(msg)
-		}
+			Msg(msg)
 
 		return nil
 	}
