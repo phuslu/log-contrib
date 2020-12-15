@@ -14,20 +14,20 @@ type Config struct {
 }
 
 func SetLogger(config ...Config) fiber.Handler {
-	var newConfig Config
+	var cfg Config
 	if len(config) > 0 {
-		newConfig = config[0]
+		cfg = config[0]
 	}
 
-	if newConfig.Logger == nil {
-		newConfig.Logger = &log.DefaultLogger
+	if cfg.Logger == nil {
+		cfg.Logger = &log.DefaultLogger
 	}
 
 	return func(c *fiber.Ctx) error {
 		start := time.Now()
 		next := c.Next()
 
-		if newConfig.Skip != nil && !newConfig.Skip(c) {
+		if cfg.Skip != nil && cfg.Skip(c) {
 			return nil
 		}
 
@@ -43,13 +43,13 @@ func SetLogger(config ...Config) fiber.Handler {
 		var e *log.Entry
 		switch {
 		case status >= 400 && status < 500:
-			e = newConfig.Logger.Warn()
+			e = cfg.Logger.Warn()
 		case status >= 500:
-			e = newConfig.Logger.Error()
+			e = cfg.Logger.Error()
 		default:
-			e = newConfig.Logger.Info()
+			e = cfg.Logger.Info()
 		}
-		e.Context(newConfig.Context).
+		e.Context(cfg.Context).
 			Int("status", status).
 			Str("method", c.Method()).
 			Str("path", c.Path()).
